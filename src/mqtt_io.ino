@@ -11,7 +11,14 @@ byte mac[] = {
 EthernetClient net;
 MQTTClient client;
 
+#define BROKER_HOST "mqtt.eclipse.org"
+#define BROKER_PORT 1883
+
 unsigned long lastMillis = 0;
+
+void set_gpio() {
+  pinMode(13, OUTPUT);
+}
 
 void connect() {
   Serial.print("Connecting...");
@@ -20,39 +27,43 @@ void connect() {
     delay(1000);
   }
   Serial.println("\nConnected!");
-  client.subscribe("io/read/in");
-  client.subscribe("io/out/write");
+  client.subscribe("io/in/set");
+  client.subscribe("io/out/pin");
 }
 
 void messageReceived(String &topic, String &payload) {
+  // Print payload from subscribed topics
   Serial.println(topic + " -> " + payload);
-  if(topic.equals("io/read/in")){
-    Serial.println("INPUT");
-    Serial.println(digitalRead(payload.toInt()));
+  // Read value from pin and 
+  if (topic.equals("io/in/set")) {
+    client.publish("io/in/val", payload + ":" + String(digitalRead(payload.toInt())));
   }
-  if(topic.equals("io/out/write")){
-    uint8_t pin, val;
+  // Write value to pin and publish
+  uint8_t pin, val;
+  if (topic.equals("io/out/pin")) {
     // Get pin and value separated by :
     for (uint8_t i = 0; i < payload.length(); i++) {
-      if (payload.substring(i, i+1) == ":") {
+      if (payload.substring(i, i + 1) == ":") {
         pin = payload.substring(0, i).toInt();
-        val = payload.substring(i+1).toInt();
+        val = payload.substring(i + 1).toInt();
         break;
       }
     }
-    Serial.print(pin);
-    Serial.print(":");
-    Serial.println(val);
-    // Write value to pin
-    digitalWrite(pin,val);
+    digitalWrite(pin, val);
   }
 }
 
-void setup() {
+void publishPin(uint8_t pin, uint8_t val) {
+  client.publish("io/in/" + String(pin), String(val));
+}
 
-  pinMode(LED_BUILTIN, OUTPUT);
+void setup() {
+  // Set all gpio 
+  set_gpio();
+
   Serial.begin(115200);
-  Serial.println("Initialize Ethernet with DHCP:");
+  Serial.println("Ethernet with DHCP");
+
   set_dhcp:
   if (Ethernet.begin(mac) == 0) {
     Serial.println("Failed to configure Ethernet using DHCP");
@@ -63,13 +74,16 @@ void setup() {
     }
     // no point in carrying on, so do nothing forevermore:
     Serial.println("Try again to initialize Ethernet with DHCP");
+    // Restart DHCP process 
     goto set_dhcp;
   }
   // print your local IP address:
   Serial.print("IP address: ");
   Serial.println(Ethernet.localIP());
 
-  client.begin("mqtt.eclipse.org", net);
+  // Broker settings
+  client.begin(BROKER_HOST,BROKER_PORT, net);
+  // Subscribe Callback
   client.onMessage(messageReceived);
   connect();
 }
@@ -113,8 +127,8 @@ void loop() {
   }
 
   // publish a message roughly every second.
-  /*if (millis() - lastMillis > 1000) {
+  if (millis() - lastMillis > 500) {
     lastMillis = millis();
-    client.publish("/hello", "world");
-  }*/
+    publishPin(13, 0);
+  }
 }
