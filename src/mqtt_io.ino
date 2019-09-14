@@ -11,22 +11,28 @@ byte mac[] = {
 EthernetClient net;
 MQTTClient client;
 
+// Broker Hostname/IP and Port
 #define BROKER_HOST "mqtt.eclipse.org"
 #define BROKER_PORT 1883
 
-unsigned long lastMillis = 0;
+uint16_t bit_input = 0x00;
+uint16_t last_bit_input = 0x00;
 
+// Configure GPIO 
 void set_gpio() {
   pinMode(13, OUTPUT);
+  pinMode(22,INPUT_PULLUP);
+  pinMode(24,INPUT_PULLUP);
 }
 
+// Connect to MQTT and Subscrib topics
 void connect() {
   Serial.print("Connecting...");
   while (!client.connect("arduino", "try", "try")) {
     Serial.print(".");
     delay(1000);
   }
-  Serial.println("\nConnected!");
+  Serial.println("\nConnected to " + String(BROKER_HOST));
   client.subscribe("io/in/set");
   client.subscribe("io/out/pin");
 }
@@ -125,10 +131,16 @@ void loop() {
   if (!client.connected()) {
     connect();
   }
+  // set intput pin on bit var
+  bitWrite(bit_input,0,digitalRead(13));
+  bitWrite(bit_input,1,digitalRead(22));
+  bitWrite(bit_input,2,digitalRead(24));
 
-  // publish a message roughly every second.
-  if (millis() - lastMillis > 500) {
-    lastMillis = millis();
-    publishPin(13, 0);
+  if (bit_input != last_bit_input)
+  {
+    Serial.print("Input (15-0): ");
+    Serial.println(bit_input, BIN);
+    last_bit_input = bit_input;
+    client.publish("io/in/event", String(bit_input));
   }
 }
