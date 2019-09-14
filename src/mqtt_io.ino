@@ -12,7 +12,7 @@ EthernetClient net;
 MQTTClient client;
 
 // Broker Hostname/IP and Port
-#define BROKER_HOST "mqtt.eclipse.org"
+#define BROKER_HOST "mqtt.eclipse.org" // public broker 
 #define BROKER_PORT 1883
 
 uint16_t bit_input = 0x00;
@@ -33,6 +33,7 @@ void connect() {
     delay(1000);
   }
   Serial.println("\nConnected to " + String(BROKER_HOST));
+  // Subscrib to specific topics
   client.subscribe("io/in/set");
   client.subscribe("io/out/pin");
 }
@@ -40,7 +41,7 @@ void connect() {
 void messageReceived(String &topic, String &payload) {
   // Print payload from subscribed topics
   Serial.println(topic + " -> " + payload);
-  // Read value from pin and 
+  // Read value from pin and publish
   if (topic.equals("io/in/set")) {
     client.publish("io/in/val", payload + ":" + String(digitalRead(payload.toInt())));
   }
@@ -55,10 +56,11 @@ void messageReceived(String &topic, String &payload) {
         break;
       }
     }
+    // Write value to especific gpio
     digitalWrite(pin, val);
   }
 }
-
+// Publish especific pin using topic
 void publishPin(uint8_t pin, uint8_t val) {
   client.publish("io/in/" + String(pin), String(val));
 }
@@ -69,7 +71,7 @@ void setup() {
 
   Serial.begin(115200);
   Serial.println("Ethernet with DHCP");
-
+  // Get IP Address using DHCP
   set_dhcp:
   if (Ethernet.begin(mac) == 0) {
     Serial.println("Failed to configure Ethernet using DHCP");
@@ -78,12 +80,12 @@ void setup() {
     } else if (Ethernet.linkStatus() == LinkOFF) {
       Serial.println("Ethernet cable is not connected.");
     }
-    // no point in carrying on, so do nothing forevermore:
+    // No point in carrying on, so do nothing forevermore:
     Serial.println("Try again to initialize Ethernet with DHCP");
     // Restart DHCP process 
     goto set_dhcp;
   }
-  // print your local IP address:
+  // Print local IP address
   Serial.print("IP address: ");
   Serial.println(Ethernet.localIP());
 
@@ -95,12 +97,12 @@ void setup() {
 }
 
 void loop() {
+  // Print Ethernet changes
   switch (Ethernet.maintain()) {
     case 1:
       //renewed fail
       Serial.println("Error: renewed fail");
       break;
-
     case 2:
       //renewed success
       Serial.println("Renewed success");
@@ -108,12 +110,10 @@ void loop() {
       Serial.print("My IP address: ");
       Serial.println(Ethernet.localIP());
       break;
-
     case 3:
       //rebind fail
       Serial.println("Error: rebind fail");
       break;
-
     case 4:
       //rebind success
       Serial.println("Rebind success");
@@ -121,13 +121,13 @@ void loop() {
       Serial.print("IP address: ");
       Serial.println(Ethernet.localIP());
       break;
-
     default:
       //nothing happened
       break;
   }
+  // MQTT
   client.loop();
-
+  // Check Broker connection status
   if (!client.connected()) {
     connect();
   }
@@ -135,7 +135,7 @@ void loop() {
   bitWrite(bit_input,0,digitalRead(13));
   bitWrite(bit_input,1,digitalRead(22));
   bitWrite(bit_input,2,digitalRead(24));
-
+  // Check input changes
   if (bit_input != last_bit_input)
   {
     Serial.print("Input (15-0): ");
